@@ -1,8 +1,18 @@
-import type { Ship, Game, CustomWebSocket, Attack } from './types/index';
+import { wss } from '.';
+import type {
+  Ship,
+  Game,
+  CustomWebSocket,
+  Attack,
+  Player,
+  Winners,
+} from './types/index';
+import { userDB } from './user-bd';
 import { wsSend } from './utility';
 
 class Games {
   private games: Game[] = [];
+  private winners: Winners[] = [];
 
   createGame({
     gameId,
@@ -116,6 +126,7 @@ class Games {
 
     if (hitShip) {
       const health = hitShip.length - 1;
+      hitShip.length = health;
       const status = health <= 0 ? 'killed' : 'shot';
 
       wsSend(game.players[game.currentPlayer].ws, 'attack', {
@@ -123,6 +134,18 @@ class Games {
         currentPlayer: game.currentPlayer,
         status,
       });
+
+      if (status === 'killed' && this.checkFinish(enemy)) {
+        [game.players[game.currentPlayer].ws, enemy.ws].forEach((ws) => {
+          wsSend(ws, 'finish', {
+            winPlayer: game.currentPlayer,
+          });
+        });
+
+        this.updateWinners(userDB.getUser(String(game.currentPlayer)).name);
+
+        return;
+      }
     } else {
       wsSend(game.players[game.currentPlayer].ws, 'attack', {
         position: { x: attack.x, y: attack.y },
@@ -130,14 +153,30 @@ class Games {
         status: 'miss',
       });
 
-      if (status === 'killed' && this.checkFinish(game)) {
-      }
-
       this.turnPlayer(game);
     }
   }
 
-  checkFinish(game: Game) {}
+  updateWinners(name: string) {
+    let winner = this.winners.find((winner) => winner.name === name);
+
+    if (!winner) {
+      winner = { name, wins: 1 };
+      this.winners.push(winner);
+    } else {
+      winner.wins += 1;
+    }
+
+    wss.clients.forEach((client: CustomWebSocket) => {
+      if (client.readyState === client.OPEN) {
+        wsSend(client, 'update_winners', this.winners);
+      }
+    });
+  }
+
+  checkFinish(enemy: Player) {
+    return enemy.ships.every((ship) => ship.length <= 0);
+  }
 
   getEnemy(game: Game) {
     const enemyId = Object.keys(game.players).find(
