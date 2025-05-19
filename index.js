@@ -1,8 +1,6 @@
 import { httpServer } from './src/http_server/index.js';
 import { startWss } from './src/ws_server/index.js';
 
-globalThis.log = console.log;
-
 const HTTP_PORT = 8181;
 
 startWss();

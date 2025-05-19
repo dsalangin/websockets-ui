@@ -1,17 +1,54 @@
 import { WebSocket } from 'ws';
-import { handleRegistration } from './registration-handler ';
-import { wsSend } from './utilite';
+import { handleRegistration } from './registration-handler';
+import { showMessage, wsSend } from './utility';
+import { createRoom } from './rooms/createRoom';
+import { addUserToRoom } from './rooms/addUserToRoom';
+import { addShips } from './addShips';
+import type { WebSocketMessageData } from './types';
+import { handleAttack } from './attack-handler';
 
-type WebSocketMessageData = Buffer | ArrayBuffer | Buffer[];
-
-export const handleClientData = (data: WebSocketMessageData, ws: WebSocket) => {
+export const handleClientData = (
+  message: WebSocketMessageData,
+  ws: WebSocket,
+) => {
   try {
-    const objData = JSON.parse(data.toString());
+    showMessage('Incoming message', message.toString());
 
-    if (objData.hasOwnProperty('type') && objData.type === 'reg') {
-      handleRegistration(JSON.parse(objData.data), ws);
+    const objMessage = JSON.parse(message.toString());
+
+    if (!objMessage.hasOwnProperty('type')) {
+      throw new Error('Property type not found');
+    }
+
+    const { type } = objMessage;
+    const data = objMessage.data ? JSON.parse(objMessage.data) : '';
+
+    switch (type) {
+      case 'reg':
+        handleRegistration(data, ws);
+        break;
+
+      case 'create_room':
+        createRoom();
+        break;
+
+      case 'add_user_to_room':
+        addUserToRoom(data, ws);
+        break;
+
+      case 'add_ships':
+        addShips(data);
+        break;
+
+      case 'attack':
+        handleAttack(data);
+        break;
+
+      default:
+        throw new Error(`Invalid type ${type}`);
     }
   } catch (err) {
+    console.log(err);
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
     const data = {
       name: '',
@@ -20,6 +57,6 @@ export const handleClientData = (data: WebSocketMessageData, ws: WebSocket) => {
       errorText: errorMessage,
     };
 
-    wsSend(ws, 'reg', data);
+    wsSend(ws, 'err', data);
   }
 };

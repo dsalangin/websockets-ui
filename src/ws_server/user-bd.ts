@@ -1,57 +1,44 @@
-import { createHash, randomUUID } from 'crypto';
-
-type User = {
-  name: string;
-  password: string;
-  index: string;
-};
-
-export type UserData = {
-  name: string;
-  password: string;
-};
-
-type RegUserData = {
-  name: string;
-  index: string;
-};
+import { randomUUID } from 'crypto';
+import type { RegUserData, User, UserData } from './types';
 
 class UserDB {
-  private users = new Map();
+  private users: User[] = [];
 
-  private generateKey(name: string, password: string): string {
-    const hash = createHash('sha256');
-    hash.update(`${name}${password}`);
-    return hash.digest('hex');
+  getUser(id: string): RegUserData {
+    const user = this.users.find((user) => user.index === id);
+
+    if (!user) {
+      throw new Error(`User with ${id} id is missing`);
+    }
+
+    return { name: user.name, index: user.index };
   }
 
-  private checkUser(key: string): boolean {
-    return this.users.has(key);
-  }
-
-  private getUser(key: string): RegUserData {
-    const { name, index } = this.users.get(key);
-    return { name, index };
-  }
-
-  private addUser(key: string, name: string, password: string) {
+  private addUser(name: string, password: string) {
     const user: User = {
       name,
       password,
       index: randomUUID().toString(),
     };
 
-    this.users.set(key, user);
+    this.users.push(user);
+
+    return {
+      name: user.name,
+      index: user.index,
+    };
   }
 
   registerUser({ name, password }: UserData): RegUserData {
-    const key = this.generateKey(name, password);
+    const user = this.users.find(
+      (user) => user.name === name && user.password === password,
+    );
 
-    if (!this.checkUser(key)) {
-      this.addUser(key, name, password);
+    if (!user) {
+      return this.addUser(name, password);
     }
 
-    return this.getUser(key);
+    return user;
   }
 }
 
